@@ -21,16 +21,18 @@ var (
 	}
 )
 
+type ClientMap map[string]*Client
+
 type Manager struct {
 	tokenMaker token.Maker
-	clients    map[string]*Client
+	clients    map[string]ClientMap
 	handlers map[string]EventHandler
 	sync.RWMutex
 }
 
 func NewManager(maker token.Maker) *Manager {
 	m := &Manager{
-		clients:    make(map[string]*Client),
+		clients:    make(map[string]ClientMap),
 		tokenMaker: maker,
 		handlers: make(map[string]EventHandler),
 	}
@@ -56,16 +58,26 @@ func (m *Manager) routeEvents(e Event, c *Client) error {
 func (m *Manager) addClient(client *Client) {
 	m.Lock()
 	defer m.Unlock()
-	m.clients[client.SocketID] = client
+
+	if _, ok := m.clients[client.ID]; ok {
+		m.clients[client.ID][client.SocketID] = client
+	} else {
+		m.clients[client.ID] = make(ClientMap)
+		m.clients[client.ID][client.SocketID] = client
+	}
 }
 
 func (m *Manager) removeClient(client *Client) {
 	m.Lock()
 	defer m.Unlock()
 
-	if _, ok := m.clients[client.SocketID]; ok {
-		client.connection.Close()
-		delete(m.clients, client.SocketID)
+	if _, ok := m.clients[client.ID]; ok {
+		if _, ok := m.clients[client.ID][client.SocketID]; ok {
+			client.connection.Close()
+			delete(m.clients[client.ID], client.SocketID)
+
+			log.Println(m.clients)
+		}
 	}
 
 	log.Println("deleting client")
