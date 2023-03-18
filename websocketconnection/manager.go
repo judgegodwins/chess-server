@@ -56,16 +56,16 @@ func (m *Manager) routeEvents(e Event, c *Client) error {
 func (m *Manager) addClient(client *Client) {
 	m.Lock()
 	defer m.Unlock()
-	m.clients[client.ID] = client
+	m.clients[client.SocketID] = client
 }
 
 func (m *Manager) removeClient(client *Client) {
 	m.Lock()
 	defer m.Unlock()
 
-	if _, ok := m.clients[client.ID]; ok {
+	if _, ok := m.clients[client.SocketID]; ok {
 		client.connection.Close()
-		delete(m.clients, client.ID)
+		delete(m.clients, client.SocketID)
 	}
 
 	log.Println("deleting client")
@@ -239,6 +239,7 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	go client.readMessages()
 	go client.writeMessages()
+	go client.listenForErrors()
 }
 
 func checkOrigin(r *http.Request) bool {
