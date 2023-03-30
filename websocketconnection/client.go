@@ -17,9 +17,9 @@ var (
 )
 
 type Client struct {
-	ID         string
-	SocketID   string
-	Username   string
+	ID         string `json:"id"`
+	SocketID   string `json:"socket_id"`
+	Username   string `json:"username"`
 	manager    *Manager
 	connection *websocket.Conn
 	egress     chan Event
@@ -37,7 +37,7 @@ func NewClient(id string, username string, conn *websocket.Conn, m *Manager) *Cl
 		egress:     make(chan Event),
 		readErr:    make(chan error), // client.readMessages listens on this channel for errors that should cause the goroutine to exit
 		writeErr:   make(chan error), // client.writeMessages listens on this channel for errors that should cause the goroutine to exit
-		err:        make(chan error), // client.listenForErrors 
+		err:        make(chan error), // client.listenForErrors
 		manager:    m,
 	}
 }
@@ -130,7 +130,7 @@ func (c *Client) writeMessages() {
 					log.Println("connection closed")
 				}
 
-				c.writeError(fmt.Errorf("egress connection closed for client with id %v", c.ID));
+				c.writeError(fmt.Errorf("egress connection closed for client with id %v", c.ID))
 				return
 			}
 

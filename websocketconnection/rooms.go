@@ -3,16 +3,19 @@ package websocketconnection
 import "github.com/google/uuid"
 
 type Room struct {
-	ID        string
-	Player1   *Client
-	Player2   *Client
-	GameState string // fen string
+	ID        string `json:"id"`
+	Clients   []*Client `json:"clients"`
+	Creator   string `json:"creator"`
+	GameState string `json:"game_state"` // fen string
 }
 
-func NewRoom(state string, creator *Client) *Room {
+const DefaultFen string = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+func NewRoom(creator string) *Room {
 	return &Room{
-		ID:      uuid.NewString(),
-		Player1: creator,
-		GameState: state,
+		ID:        uuid.NewString(),
+		Creator:   creator,
+		Clients: make([]*Client, 0),
+		GameState: DefaultFen,
 	}
 }

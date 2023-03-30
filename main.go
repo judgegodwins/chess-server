@@ -33,9 +33,9 @@ func main() {
 	mux.Handle("/", http.FileServer(http.Dir("./frontend")))
 	mux.HandleFunc("/ws", manager.ServeWS)
 	mux.HandleFunc("/token", manager.TokenHandler)
-	mux.HandleFunc("/token/verify", manager.TokenVerifier)
+	mux.Handle("/token/verify", manager.AuthMiddleWare(http.HandlerFunc(manager.TokenVerifier)))
+	mux.Handle("/rooms", manager.AuthMiddleWare(http.HandlerFunc(manager.CreateRoom)))
 
 	handler := c.Handler(mux)
-
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }

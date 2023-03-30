@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/websocket"
+	"github.com/judgegodwins/chess-server/http_utils"
 	"github.com/judgegodwins/chess-server/token"
+	"github.com/samber/lo"
 )
 
 var (
@@ -23,16 +25,20 @@ var (
 
 type Manager struct {
 	tokenMaker token.Maker
+	validate   *validator.Validate
 	clients    map[string]*Client
-	handlers map[string]EventHandler
+	rooms      map[string]*Room
+	handlers   map[string]EventHandler
 	sync.RWMutex
 }
 
 func NewManager(maker token.Maker) *Manager {
 	m := &Manager{
 		clients:    make(map[string]*Client),
+		rooms:      make(map[string]*Room),
 		tokenMaker: maker,
-		handlers: make(map[string]EventHandler),
+		handlers:   make(map[string]EventHandler),
+		validate:   validator.New(),
 	}
 
 	m.setupEventHandlers()
@@ -40,7 +46,8 @@ func NewManager(maker token.Maker) *Manager {
 }
 
 func (m *Manager) setupEventHandlers() {
-	m.handlers[CreateRoomEventMessage] = CreateRoomHandler
+	m.handlers[JoinRoomEventMessage] = JoinRoomHandler
+	// m.handlers[CreateRoomEventMessage] = CreateRoomHandler
 }
 
 func (m *Manager) routeEvents(e Event, c *Client) error {
@@ -72,84 +79,11 @@ func (m *Manager) removeClient(client *Client) {
 	log.Println(m.clients)
 }
 
-type baseResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-type dataResponse struct {
-	Data interface{} `json:"data"`
-	baseResponse
-}
-
-func (m *Manager) TokenVerifier(w http.ResponseWriter, r *http.Request) {
-
-	w.Header().Set("Content-Type", "application/json")
-
-	header := r.Header.Get("authorization")
-	s := strings.Split(header, " ")
-
-	var errResponse baseResponse = baseResponse{
-		Success: false,
-	}
-
-	if len(s) < 2 {
-		w.WriteHeader(http.StatusUnauthorized)
-		errResponse.Message = "Invalid authorization header"
-		res, err := json.Marshal(errResponse)
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		w.Write(res)
-		return
-	}
-
-	payload, err := m.tokenMaker.VerifyToken(s[1])
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		errResponse.Message = err.Error()
-		res, err := json.Marshal(errResponse)
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		w.Write(res)
-		return
-	}
-
-	response := dataResponse{
-		baseResponse: baseResponse{
-			Success: true,
-			Message: "Temporary auth data",
-		},
-		Data: map[string]string{
-			"id":       payload.ID.String(),
-			"username": payload.Username,
-		},
-	}
-
-	payloadBytes, err := json.Marshal(response)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Println(err)
-		return
-	}
-
-	w.Write(payloadBytes)
+type userTokenRequest struct {
+	Username string `json:"username" validate:"required"`
 }
 
 func (m *Manager) TokenHandler(w http.ResponseWriter, r *http.Request) {
-	type userTokenRequest struct {
-		Username string `json:"username"`
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	// w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	// w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -162,9 +96,31 @@ func (m *Manager) TokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	var data userTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		response := baseResponse{
+		response := http_utils.BaseResponse{
 			Success: false,
 			Message: "invalid body, username required",
+		}
+
+		res, err := json.Marshal(response)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(res)
+		return
+	}
+
+	if err := m.validate.Struct(data); err != nil {
+		response := http_utils.ValidationErrorResponse{
+			BaseResponse: http_utils.BaseResponse{
+				Success: false,
+				Message: "invalid body, validation failed",
+			},
+			Errors: lo.Map(err.(validator.ValidationErrors), func(item validator.FieldError, index int) string {
+				return item.Error()
+			}),
 		}
 
 		res, err := json.Marshal(response)
@@ -185,8 +141,8 @@ func (m *Manager) TokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := dataResponse{
-		baseResponse: baseResponse{
+	response := http_utils.DataResponse{
+		BaseResponse: http_utils.BaseResponse{
 			Success: true,
 			Message: "token created",
 		},
@@ -208,7 +164,6 @@ func (m *Manager) TokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
-	log.Println("new socket request")
 	token := r.URL.Query().Get("token")
 
 	if token == "" {
