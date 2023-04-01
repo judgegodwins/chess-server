@@ -37,5 +37,6 @@ func main() {
 	mux.Handle("/rooms", manager.AuthMiddleWare(http.HandlerFunc(manager.CreateRoom)))
 
 	handler := c.Handler(mux)
+	log.Println("Listening on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }
