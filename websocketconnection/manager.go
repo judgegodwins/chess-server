@@ -190,8 +190,6 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("New client", client)
 
-	log.Println("clients", m.clients)
-
 	go client.readMessages()
 	go client.writeMessages()
 	go client.listenForErrors()
