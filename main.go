@@ -35,6 +35,7 @@ func main() {
 	mux.HandleFunc("/token", manager.TokenHandler)
 	mux.Handle("/token/verify", manager.AuthMiddleWare(http.HandlerFunc(manager.TokenVerifier)))
 	mux.Handle("/rooms", manager.AuthMiddleWare(http.HandlerFunc(manager.CreateRoom)))
+	mux.Handle("/rooms/verify", manager.AuthMiddleWare(http.HandlerFunc(manager.VerifyRoom)))
 
 	handler := c.Handler(mux)
 	log.Println("Listening on port 8080")

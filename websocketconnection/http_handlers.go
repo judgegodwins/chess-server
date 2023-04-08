@@ -128,14 +128,14 @@ func (m *Manager) CreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 type verifyRoomRequest struct {
-	id string `validate:"required"`
+	ID string `validate:"required"`
 }
 
 func (m *Manager) VerifyRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
 	req := verifyRoomRequest{
-		id: id,
+		ID: id,
 	}
 
 	vErr := http_utils.ValidateStruct(w, m.validate, req)
@@ -145,7 +145,7 @@ func (m *Manager) VerifyRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room := m.rooms[req.id]
+	room := m.rooms[req.ID]
 	
 	if room == nil {
 		http_utils.SendResponse(w, http.StatusBadRequest, http_utils.NewBaseResponse(false, "Invalid room"))

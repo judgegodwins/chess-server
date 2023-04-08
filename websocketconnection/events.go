@@ -11,6 +11,7 @@ const (
 	ErrorEventMessage      = "error"
 	CreateRoomEventMessage = "create_room"
 	JoinRoomEventMessage   = "join_room"
+	AcceptJoinRequestMessage = "accept_join_request"
 )
 
 type ErrorPayload struct {
@@ -27,6 +28,11 @@ type JoinRoomPayload struct {
 
 type TestPayload struct {
 	Key string `json:"key"`
+}
+
+type AcceptJoinRequestPayload struct {
+	RoomID string `json:"room_id"`
+	PlayerID string `json:"player_id"`
 }
 
 type EventHandler = func(e Event, c *Client) error

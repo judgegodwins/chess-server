@@ -47,6 +47,7 @@ func NewManager(maker token.Maker) *Manager {
 
 func (m *Manager) setupEventHandlers() {
 	m.handlers[JoinRoomEventMessage] = JoinRoomHandler
+	m.handlers[AcceptJoinRequestMessage] = AcceptRequestToJoinHandler
 	// m.handlers[CreateRoomEventMessage] = CreateRoomHandler
 }
 

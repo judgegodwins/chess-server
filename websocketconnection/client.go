@@ -42,6 +42,10 @@ func NewClient(id string, username string, conn *websocket.Conn, m *Manager) *Cl
 	}
 }
 
+func (c *Client) PushToEgress(e Event) {
+	c.egress <- e
+}
+
 // Both readMessage and writeMessage listen to the error channel.
 // Pushing to the error channel (c.err) from either readMessages or writeMessages causes the other to exit
 // since an error has occured
