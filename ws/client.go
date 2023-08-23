@@ -72,8 +72,21 @@ func (c *Client) readMessages(ctx context.Context) {
 				return
 			}
 
+			log.Println("event with traceId", evt)
+
 			if err := c.manager.routeEvent(ctx, evt, c); err != nil {
-				log.Println("error handling event:", err)
+				log.Printf("error handling event %v: %v", evt, err)
+
+				errEvent, err := NewErrorEvent(evt.TraceID, err.Error())
+
+				if err != nil {
+					c.handleError(err)
+					return
+				}
+
+				c.PushToEgress(errEvent)
+				// emit an error to client. Any errors returned from event handlers
+				// should be emitted to the client using the trace id
 			}
 		}
 
@@ -136,8 +149,26 @@ func (c *Client) Err() chan error {
 	return c.err
 }
 
+// Creates an event and pushes to client's egress
+func (c *Client) PushEventToEgress(evtType string, payload any) error {
+	evt, err := NewEvent(evtType, payload)
+	if err != nil {
+		return err
+	}
+	c.PushToEgress(evt)
+	return nil
+}
+
+// Pushes an event to the client's egress to the delivered via the websocket connection
+func (c *Client) PushToEgress(evt Event) {
+	c.egress <- evt
+}
+
 // Helper method to join a room
 func (c *Client) Join(roomId string) {
+	c.manager.Lock()
+	defer c.manager.Unlock()
+
 	room, ok := c.manager.Rooms[roomId]
 
 	// if room doesn't exist, create one
@@ -160,6 +191,9 @@ func (c *Client) Join(roomId string) {
 
 // Leave causes a client to leave a room
 func (c *Client) Leave(roomId string) {
+	c.manager.Lock()
+	defer c.manager.Unlock()
+
 	room, ok := c.manager.Rooms[roomId]
 
 	if !ok {
@@ -168,7 +202,21 @@ func (c *Client) Leave(roomId string) {
 
 	index := slices.Index(room, c)
 
-	if index < 0 {
+	joinedRoomsIndex := slices.Index(c.JoinedRooms, roomId)
+
+	// remove client from room slice
+	if index >= 0 {
 		c.manager.Rooms[roomId] = append(room[:index], room[index+1:]...)
+	}
+
+	// remove roomId from least of joined rooms
+	if joinedRoomsIndex >= 0 {
+		c.JoinedRooms = append(c.JoinedRooms[:joinedRoomsIndex], c.JoinedRooms[joinedRoomsIndex+1:]...)
+	}
+}
+
+func (c *Client) LeaveAllRooms() {
+	for _, room := range c.JoinedRooms {
+		c.Leave(room)
 	}
 }

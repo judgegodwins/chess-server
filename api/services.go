@@ -1,7 +1,7 @@
 package api
 
 import (
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 
@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/judgegodwins/chess-server/tokens"
+	"github.com/judgegodwins/chess-server/util"
 )
 
 type usernameRequest struct {
@@ -20,7 +21,7 @@ func (s *Server) TokenGenerator(c *gin.Context) {
 	var data usernameRequest
 
 	if err := c.ShouldBindJSON(&data); err != nil {
-		c.IndentedJSON(http.StatusUnprocessableEntity, errorResponse(err.Error()))
+		c.JSON(http.StatusUnprocessableEntity, errorResponse(err.Error()))
 		return
 	}
 
@@ -36,29 +37,35 @@ func (s *Server) TokenGenerator(c *gin.Context) {
 
 	if err != nil {
 		log.Println(err)
-		c.IndentedJSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+		c.JSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
 		return
 	}
 
-
-	fmt.Println(c.Request.Context())
-
-	c.IndentedJSON(http.StatusOK, successResponse("Auth data", gin.H{
+	c.JSON(http.StatusOK, successResponse("Auth data", gin.H{
 		"id":       payload.ID,
 		"username": payload.Username,
 		"token":    token,
 	}))
 }
 
-func (s *Server) CreateRoom(c *gin.Context) {
-	var authPayload *tokens.Payload
-
-	v, _ := c.Get(string(authContextKey))
-
-	authPayload, ok := v.(*tokens.Payload)
+func (s *Server) GetTokenData(c *gin.Context) {
+	payload, ok := GetPayload(c)
 
 	if !ok {
-		c.IndentedJSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+		c.JSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+		log.Println(errors.New("value in auth_payload key of request context could not be casted to *token.Payload"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse("success", payload))
+}
+
+func (s *Server) CreateRoom(c *gin.Context) {
+	authPayload, ok := GetPayload(c)
+
+	if !ok {
+		c.JSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+		log.Println(errors.New("value in auth_payload key of request context could not be casted to *token.Payload"))
 		return
 	}
 
@@ -66,19 +73,53 @@ func (s *Server) CreateRoom(c *gin.Context) {
 
 	data := make(map[string]string)
 
-	data[roomIDKey] = roomID
-	data[roomPlayer1Key] = authPayload.ID
-	data[roomPlayer2Key] = ""
+	data[util.RoomIDKey] = roomID
+	data[util.RoomPlayer1Key] = authPayload.ID
+	data[util.RoomPlayer2Key] = ""
+	data[util.RoomGameStateKey] = util.DefaultFEN
+	data[util.RoomGameStartedKey] = util.GameStartedFalse.String()
+	data[util.RoomPlayer1UsernameKey] = authPayload.Username
 
 	for k, v := range data {
-		err := s.rdb.HSet(c, fmt.Sprintf("room:%v", roomID), k, v).Err()
+		err := s.rdb.HSet(c.Request.Context(), util.GetRoomKey(roomID), k, v).Err()
 
 		if err != nil {
-			log.Println(err)
-			c.IndentedJSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+			log.Println("error on rdb.HSet:", err)
+			c.JSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
 			return
 		}
 	}
 
-	c.IndentedJSON(http.StatusCreated, data)
+	c.JSON(http.StatusCreated, successResponse("Room created", data))
+}
+
+type checkRoomRequest struct {
+	RoomID string `uri:"id" binding:"required"`
+}
+
+func (s *Server) CheckRoom(c *gin.Context) {
+	var data checkRoomRequest
+
+	if err := c.ShouldBindUri(&data); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, errorResponse(err.Error()))
+		return
+	}
+
+	room, err := s.rdb.HGetAll(c.Request.Context(), util.GetRoomKey(data.RoomID)).Result()
+
+	if err != nil {
+		log.Println("error getting room data from redis:", err)
+		c.JSON(http.StatusInternalServerError, errorResponse(ErrorMessage500))
+		return
+	}
+
+	if len(room) == 0 {
+		c.JSON(http.StatusNotFound, errorResponse("room not found"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse("room data", gin.H{
+		"id":   room["id"],
+		"full": room[util.RoomPlayer1Key] != "" && room[util.RoomPlayer2Key] != "",
+	}))
 }

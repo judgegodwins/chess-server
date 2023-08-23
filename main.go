@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/judgegodwins/chess-server/api"
@@ -22,6 +23,11 @@ func main() {
 		Password: config.RedisPassword,
 		DB:       0,
 	})
+
+	// check redis connection status
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		log.Fatal(err)
+	}
 
 	server := api.NewServer(config, rdb)
 

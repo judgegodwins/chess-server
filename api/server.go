@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/judgegodwins/chess-server/util"
 	"github.com/judgegodwins/chess-server/ws"
@@ -27,10 +28,23 @@ func NewServer(config *util.Config, rdb *redis.Client) *Server {
 		rdb:       rdb,
 	}
 
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"*"},
+		AllowHeaders:     []string{"*"},
+		AllowCredentials: true,
+	}))
+
 	router.Any("/ws", server.wsManager.ServeWS)
 	router.StaticFS("/frontend", http.Dir("./frontend"))
-	router.POST("/auth/username", server.TokenGenerator)
+	router.POST("/token", server.TokenGenerator)
+	router.POST("/token/verify", server.AuthMiddleware, server.GetTokenData)
 	router.POST("/rooms", server.AuthMiddleware, server.CreateRoom)
+	router.GET("/rooms/:id", server.AuthMiddleware, server.CheckRoom)
+
+	router.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, errorResponse("endpoint not found"))
+	})
 
 	return server
 }

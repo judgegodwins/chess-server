@@ -16,7 +16,7 @@ func (s *Server) AuthMiddleware(c *gin.Context) {
 	header := c.Request.Header.Get("authorization")
 
 	if header == "" {
-		c.IndentedJSON(http.StatusUnauthorized, errorResponse("unauthorized"))
+		c.JSON(http.StatusUnauthorized, errorResponse("unauthorized"))
 		c.Abort()
 		return
 	}
@@ -24,7 +24,7 @@ func (s *Server) AuthMiddleware(c *gin.Context) {
 	sArr := strings.Split(header, " ")
 
 	if len(sArr) < 2 {
-		c.IndentedJSON(http.StatusUnauthorized, errorResponse("unauthorized"))
+		c.JSON(http.StatusUnauthorized, errorResponse("unauthorized"))
 		c.Abort()
 		return
 	}
@@ -32,7 +32,7 @@ func (s *Server) AuthMiddleware(c *gin.Context) {
 	payload, err := tokens.ParseJWTToken(sArr[1], []byte(s.config.JWTSecret))
 
 	if err != nil {
-		c.IndentedJSON(http.StatusUnauthorized, errorResponse("invalid bearer token"))
+		c.JSON(http.StatusUnauthorized, errorResponse("invalid bearer token"))
 		c.Abort()
 		return
 	}
