@@ -220,3 +220,32 @@ func (c *Client) LeaveAllRooms() {
 		c.Leave(room)
 	}
 }
+
+// Emits a user_disconnect event to all rooms, a user disconnecting user is part of
+func (c *Client) EmitDisconnect() error {
+	userID, ok := c.Data["userID"].(string)
+	if !ok {
+		return errors.New("userID could not be casted to a string")
+	}
+
+	userClients := c.manager.Rooms[userID]
+
+	// user still has other clients connected
+	if len(userClients) > 1 {
+		return nil
+	}
+
+	evt, err := NewEvent(EventUserDisconnect, PayloadUserDisconnect{
+		UserID: userID,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, room := range c.JoinedRooms {
+		c.manager.EmitToRoom(room, evt)
+	}
+
+	return nil
+}

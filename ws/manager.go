@@ -127,6 +127,7 @@ func (m *Manager) ServeWS(c *gin.Context) {
 
 	defer func() {
 		cancel()
+		client.EmitDisconnect()
 		client.LeaveAllRooms()
 		m.removeClient(client)
 
