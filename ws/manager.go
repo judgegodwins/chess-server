@@ -53,6 +53,8 @@ func NewManager(config *util.Config, rdb *redis.Client) *Manager {
 
 func (m *Manager) setupEventHandlers() {
 	m.handlers[EventJoinRoom] = JoinGameRoom
+	m.handlers[EventAcceptJoin] = AcceptJoinRequest
+	m.handlers[EventPieceMove] = PieceMoveHandler
 }
 
 func (m *Manager) routeEvent(ctx context.Context, evt Event, c *Client) error {
@@ -107,21 +109,27 @@ func (m *Manager) ServeWS(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("error upgrading to websocket connection: %v\n", err)
-		c.IndentedJSON(http.StatusInternalServerError, "something went wrong")
+		// c.IndentedJSON(http.StatusInternalServerError, "something went wrong")
 		return
 	}
 
 	client := NewClient(conn, m)
 
 	client.Data["userID"] = payload.ID
+	client.Data["username"] = payload.Username
 
 	m.addClient(client)
+
+	// make client join its own room
+	client.Join(payload.ID)
 
 	ctx, cancel := context.WithCancel(c)
 
 	defer func() {
 		cancel()
+		client.LeaveAllRooms()
 		m.removeClient(client)
+
 		err := client.connection.WriteMessage(websocket.CloseMessage, nil)
 
 		if !errors.Is(err, websocket.ErrCloseSent) {
@@ -137,12 +145,44 @@ func (m *Manager) ServeWS(c *gin.Context) {
 	log.Println("Client error:", err)
 }
 
-func checkOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	switch origin {
-	case "http://localhost:8080":
-		return true
-	default:
+// Emits an event to a room. Every client in that room receives the event.
+func (m *Manager) EmitToRoom(roomID string, evt Event) {
+	room, ok := m.Rooms[roomID]
+
+	if !ok {
+		return
+	}
+
+	for _, client := range room {
+		client.PushToEgress(evt)
+	}
+}
+
+// Checks if a client is in the room
+func (m *Manager) ClientInRoom(roomID string, c *Client) bool {
+	room, ok := m.Rooms[roomID]
+
+	if !ok {
 		return false
 	}
+
+	for _, client := range room {
+		if client == c {
+			return true
+		}
+	}
+
+	return false
+}
+
+func checkOrigin(r *http.Request) bool {
+	// origin := r.Header.Get("Origin")
+	// switch origin {
+	// case "http://localhost:8080":
+	// 	return true
+	// default:
+	// 	return false
+	// }
+
+	return true
 }
