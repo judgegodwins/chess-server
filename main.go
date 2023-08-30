@@ -12,7 +12,7 @@ import (
 func main() {
 	util.InitValidator()
 
-	config, err := util.LoadConfig(".")
+	config, err := util.LoadConfig()
 
 	if err != nil {
 		log.Fatal(err)
