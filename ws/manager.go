@@ -55,6 +55,7 @@ func (m *Manager) setupEventHandlers() {
 	m.handlers[EventJoinRoom] = JoinGameRoom
 	m.handlers[EventAcceptJoin] = AcceptJoinRequest
 	m.handlers[EventPieceMove] = PieceMoveHandler
+	m.handlers[EventCloseRoom] = CloseRoom
 }
 
 func (m *Manager) routeEvent(ctx context.Context, evt Event, c *Client) error {
@@ -80,10 +81,7 @@ func (m *Manager) removeClient(client *Client) {
 	m.Lock()
 	defer m.Unlock()
 
-	if _, ok := m.clients[client.ID]; ok {
-		client.connection.Close()
-		delete(m.clients, client.ID)
-	}
+	delete(m.clients, client.ID)
 }
 
 // Websocket connection handler
@@ -126,8 +124,8 @@ func (m *Manager) ServeWS(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c)
 
 	defer func() {
-		cancel()
 		client.EmitDisconnect()
+		cancel()
 		client.LeaveAllRooms()
 		m.removeClient(client)
 
@@ -143,7 +141,9 @@ func (m *Manager) ServeWS(c *gin.Context) {
 
 	err = <-client.Err()
 
-	log.Println("Client error:", err)
+	log.Printf("Client (%v) error: %v", client.ID, err)
+
+	c.AbortWithStatus(http.StatusOK)
 }
 
 // Emits an event to a room. Every client in that room receives the event.
@@ -174,6 +174,26 @@ func (m *Manager) ClientInRoom(roomID string, c *Client) bool {
 	}
 
 	return false
+}
+
+// util func to emit user_disconnect
+func (m *Manager) EmitUserDisconnect(userId, roomId string) error {
+	evt, err := NewEvent(EventUserDisconnect, PayloadUser{
+		UserID: userId,
+	})
+	if err != nil {
+		return err
+	}
+
+	m.EmitToRoom(roomId, evt)
+	return nil
+}
+
+func (m *Manager) removeRoom(roomID string) {
+	m.Lock()
+	defer m.Unlock()
+
+	delete(m.Rooms, roomID)
 }
 
 func checkOrigin(r *http.Request) bool {

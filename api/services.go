@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -80,8 +81,9 @@ func (s *Server) CreateRoom(c *gin.Context) {
 	data[util.RoomGameStartedKey] = util.GameStartedFalse.String()
 	data[util.RoomPlayer1UsernameKey] = authPayload.Username
 
+	roomKey := util.GetRoomKey(roomID)
 	for k, v := range data {
-		err := s.rdb.HSet(c.Request.Context(), util.GetRoomKey(roomID), k, v).Err()
+		err := s.rdb.HSet(c.Request.Context(), roomKey, k, v).Err()
 
 		if err != nil {
 			log.Println("error on rdb.HSet:", err)
@@ -89,6 +91,8 @@ func (s *Server) CreateRoom(c *gin.Context) {
 			return
 		}
 	}
+
+	s.rdb.Expire(c.Request.Context(), roomKey, 12*time.Hour).Err()
 
 	c.JSON(http.StatusCreated, successResponse("Room created", data))
 }

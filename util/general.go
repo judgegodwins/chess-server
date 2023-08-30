@@ -9,7 +9,7 @@ const (
 	RoomPlayer2UsernameKey = "player2_username"
 	RoomPlayer2Key         = "player2"
 	RoomGameStateKey       = "game_state"
-	RoomGameStartedKey     = "game_started"
+	RoomGameStartedKey     = "active"
 )
 
 const DefaultFEN string = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -17,8 +17,8 @@ const DefaultFEN string = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
 type GameStartedEnum int
 
 const (
-	GameStartedFalse GameStartedEnum = iota
-	GameStartedTrue
+	GameStartedFalse GameStartedEnum = iota // 0
+	GameStartedTrue // 1
 )
 
 func (n GameStartedEnum) String() string {

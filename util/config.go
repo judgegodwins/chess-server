@@ -5,17 +5,17 @@ import (
 )
 
 type Config struct {
-	JWTSecret string `mapstructure:"JWT_SECRET" validate:"required"`
-	RedisAddress string `mapstructure:"REDIS_ADDR" validate:"required"`
+	JWTSecret     string `mapstructure:"JWT_SECRET" validate:"required"`
+	RedisAddress  string `mapstructure:"REDIS_ADDR" validate:"required"`
 	RedisPassword string `mapstructure:"REDIS_PW"`
-	Port int `mapstructure:"PORT" validate:"required,number"`
+	Port          int    `mapstructure:"PORT" validate:"required,number"`
 }
 
 func LoadConfig(path string) (*Config, error) {
 	var config *Config
 
 	viper.AddConfigPath(path)
-	viper.SetConfigFile(".env")
+	viper.SetConfigName("app")
 	viper.SetConfigType("env")
 	viper.AutomaticEnv()
 
@@ -23,6 +23,11 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	viper.BindEnv("JWT_SECRET")
+	viper.BindEnv("REDIS_ADDR")
+	viper.BindEnv("REDIS_PW")
+	viper.BindEnv("PORT")
 
 	err = viper.Unmarshal(&config)
 

@@ -72,8 +72,6 @@ func (c *Client) readMessages(ctx context.Context) {
 				return
 			}
 
-			log.Println("event with traceId", evt)
-
 			if err := c.manager.routeEvent(ctx, evt, c); err != nil {
 				log.Printf("error handling event %v: %v", evt, err)
 
@@ -223,19 +221,22 @@ func (c *Client) LeaveAllRooms() {
 
 // Emits a user_disconnect event to all rooms, a user disconnecting user is part of
 func (c *Client) EmitDisconnect() error {
+	c.manager.RLock()
+	defer c.manager.RUnlock()
+
 	userID, ok := c.Data["userID"].(string)
 	if !ok {
 		return errors.New("userID could not be casted to a string")
 	}
 
-	userClients := c.manager.Rooms[userID]
+	// userClients := c.manager.Rooms[userID]
 
-	// user still has other clients connected
-	if len(userClients) > 1 {
-		return nil
-	}
+	// // user still has other clients connected
+	// if len(userClients) > 1 {
+	// 	return nil
+	// }
 
-	evt, err := NewEvent(EventUserDisconnect, PayloadUserDisconnect{
+	evt, err := NewEvent(EventUserDisconnect, PayloadUser{
 		UserID: userID,
 	})
 
@@ -243,8 +244,26 @@ func (c *Client) EmitDisconnect() error {
 		return err
 	}
 
+	// iterate over client's joined rooms
 	for _, room := range c.JoinedRooms {
-		c.manager.EmitToRoom(room, evt)
+		if room == userID { // don't send user_disconnect to user's room
+			continue
+		}
+
+		leavingRoom := true
+		// TODO: Avoid using nested for loop
+		for _, client := range c.manager.Rooms[room] {
+			// if the user still has another client connected to the room,
+			// don't emit user_disconnect to that room
+			if client.Data["userID"] == c.Data["userID"] && client != c {
+				leavingRoom = false
+				break
+			}
+		}
+
+		if leavingRoom {
+			c.manager.EmitToRoom(room, evt)
+		}
 	}
 
 	return nil
