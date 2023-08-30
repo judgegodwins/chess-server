@@ -15,11 +15,18 @@ type Event struct {
 type EventHandler func(ctx context.Context, evt Event, c *Client) error
 
 const (
-	EventSendMessage = "send_message"
-	EventJoinRoom    = "join_room"
-	EventAcceptJoin  = "accept_join_request"
-	EventPieceMove   = "piece_move"
-	EventError       = "error"
+	EventSendMessage    = "send_message"
+	EventJoinRoom       = "join_room"
+	EventAcceptJoin     = "accept_join_request"
+	EventPieceMove      = "piece_move"
+	EventError          = "error"
+	EventUserDisconnect = "user_disconnect"
+	EventUserConnect    = "user_connect"
+	EventRoomNotFound   = "room_not_found"
+	EventRequestJoin    = "request_join"
+	EventStartGame      = "start_game"
+	EventCloseRoom      = "close_room"
+	EventClosingRoom = "closing_room"
 )
 
 type PayloadError struct {
@@ -31,19 +38,24 @@ type PayloadSendMessage struct {
 	From    string `json:"from"`
 }
 
-type PayloadJoinRoom struct {
+type PayloadRoom struct {
 	RoomID string `json:"room_id"`
 }
 
 type PayloadAcceptJoinRequest struct {
 	RoomID   string `json:"room_id"`
+	ClientID string `json:"client_id"`
 	PlayerID string `json:"player_id"`
 }
 
 type PayloadPieceMove struct {
-	RoomID string `json:"room_id"`
-	// Fen    string          `json:"fen"`
-	Move json.RawMessage `json:"move"`
+	RoomID string          `json:"room_id"`
+	Fen    string          `json:"fen"`
+	Move   json.RawMessage `json:"move"`
+}
+
+type PayloadUser struct {
+	UserID string `json:"user_id"`
 }
 
 func NewEvent(evtType string, payload any) (Event, error) {
