@@ -129,11 +129,7 @@ func (m *Manager) ServeWS(c *gin.Context) {
 		client.LeaveAllRooms()
 		m.removeClient(client)
 
-		err := client.connection.WriteMessage(websocket.CloseMessage, nil)
-
-		if !errors.Is(err, websocket.ErrCloseSent) {
-			log.Println("Error sending close message:", err)
-		}
+		client.connection.Close()
 	}()
 
 	go client.readMessages(ctx)
